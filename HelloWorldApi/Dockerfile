@@ -6,7 +6,7 @@ RUN dotnet restore --locked-mode
 RUN dotnet publish -c Release -o /app/publish --no-restore
 
 # Use the official .NET 8 ASP.NET runtime image for runtime
-FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:47091f7cee02e448630df85542579e09b7bbe3b10bd4e1991ff59d3adbddd720 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:8.0@sha256:a0ba846b589abcbb232ab7e3c70474745bcade0506654b1a0e45a4a0369ce381 AS final
 WORKDIR /app
 COPY --from=build /app/publish .
 EXPOSE 8080
