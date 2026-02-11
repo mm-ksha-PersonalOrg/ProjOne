@@ -7,20 +7,30 @@ version: 2
 updates:
   - package-ecosystem: "nuget"
     directory: "/"
+    target-branch: dev
     schedule:
       interval: "weekly"
-      
+    cooldown:
+      default-days: 3
+
   - package-ecosystem: "docker"
-    directory: "/"
+    directory: "/HelloWorldApi"
+    target-branch: dev
     schedule:
-      interval: "weekly"
-            
+      interval: "daily"
+
   - package-ecosystem: "docker-compose"
     directory: "/"
+    target-branch: dev
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 3
 
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: dev
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 3
