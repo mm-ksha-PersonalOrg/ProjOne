@@ -67,11 +67,6 @@ jobs:
       - name: Check if TestCase is required
         id: check-testcase-requirement
         run: |
-          echo Test ....
-            PROJECTS=$(gh project list --owner ${{ steps.setup.outputs.owner }} --format json)
-            echo "Available projects:"
-            echo "$PROJECTS" | jq '.'
-          echo Test End ....
           echo "::group::Checking TestCase requirement"
           ORG="${{ steps.setup.outputs.owner }}"
           PROJECT_NUMBER=3
@@ -85,8 +80,7 @@ jobs:
               after_clause=", after: \"$cursor\""
             fi
             QUERY='{
-              # organization(login: "'"$ORG"'") {
-              user(login: "'"$ORG"'") {
+              organization(login: "'"$ORG"'") {
                 projectV2(number: '"$PROJECT_NUMBER"') {
                   items(first: 50'"$after_clause"') {
                     pageInfo { hasNextPage endCursor }
