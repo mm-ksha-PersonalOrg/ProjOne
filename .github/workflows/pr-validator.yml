@@ -3,8 +3,13 @@ name: PR Validator
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    branches:
+      - 'main'
+      - 'develop'
+      - 'release/**'
+      - 'hotfix/**'
   pull_request_review:
-    types: [submitted, edited]
+    types: [submitted, edited, dismissed]
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
