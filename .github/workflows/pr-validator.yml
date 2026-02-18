@@ -37,6 +37,7 @@ jobs:
           PR_NUMBER=${{ steps.setup.outputs.pr_number }}
           REPO=${{ github.repository }}
           echo "::group::Checking PR #$PR_NUMBER for linked issues"
+          echo "::notice title=PR Validation::Checking linked issues for PR #$PR_NUMBER"
           # Use gh pr view to get closing issues references
           RESULT=$(gh pr view $PR_NUMBER --repo "$REPO" --json closingIssuesReferences)
           ISSUE_COUNT=$(echo "$RESULT" | jq '.closingIssuesReferences | length')
@@ -45,11 +46,13 @@ jobs:
             echo "$RESULT" | jq -r '.closingIssuesReferences[] | "  • Issue #\(.number): \(.title) (\(.url))"'
             # Extract first issue number for further validation
             ISSUE_NUMBER=$(echo "$RESULT" | jq '.closingIssuesReferences[0].number')
+            echo "::notice title=Linked Issue Found::Using issue #$ISSUE_NUMBER for downstream validation"
             echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
             echo "::endgroup::"
             exit 0
           else
             echo "::endgroup::"
+            echo "::notice title=Linked Issue Missing::No linked issues detected for PR #$PR_NUMBER"
             echo "::error title=Validation Failed: Missing Linked Issue::❌ This PR is not linked to any issue."
             echo ""
             echo "**Why this check failed:**"
@@ -71,9 +74,12 @@ jobs:
           ORG="${{ steps.setup.outputs.owner }}"
           PROJECT_NUMBER=13
           ISSUE_NUMBER=${{ steps.check-linked-issue.outputs.issue_number }}
+          echo "::notice title=Project Lookup::Inspecting project #$PROJECT_NUMBER in org $ORG for issue #$ISSUE_NUMBER"
           cursor=null
           found="false"
+          page=1
           while [ "$cursor" != "end" ]; do
+            echo "::notice title=Project Page Scan::Scanning project items page $page (cursor=$cursor)"
             if [ "$cursor" = "null" ]; then
               after_clause=""
             else
@@ -109,20 +115,24 @@ jobs:
             ')
             if [ -n "$match" ]; then
               found="true"
+              echo "::notice title=TestCase Field Match::Issue #$ISSUE_NUMBER has TestCaseRequired=True"
               break
             fi
             hasNextPage=$(echo "$RESULT" | jq -r '.data.organization.projectV2.items.pageInfo.hasNextPage')
             if [ "$hasNextPage" = "true" ]; then
               cursor=$(echo "$RESULT" | jq -r '.data.organization.projectV2.items.pageInfo.endCursor')
+              page=$((page + 1))
             else
               cursor="end"
             fi
           done
           if [ "$found" = "true" ]; then
             echo "TestCaseRequired is True for issue #$ISSUE_NUMBER"
+            echo "::notice title=TestCase Required::QA approval validation will run"
             echo "testcase_required=true" >> $GITHUB_OUTPUT
           else
             echo "TestCaseRequired is NOT True for issue #$ISSUE_NUMBER"
+            echo "::notice title=TestCase Not Required::QA approval validation will be skipped"
             echo "testcase_required=false" >> $GITHUB_OUTPUT
           fi
           echo "::endgroup::"
@@ -163,6 +173,7 @@ jobs:
           ORG=${{ steps.setup.outputs.owner }}
           
           echo "::group::Validating QA review"
+          echo "::notice title=QA Validation::TestCaseRequired=True, validating QA approval for PR #$PR_NUMBER"
           
           # Get QA team members from GitHub API
           echo "Fetching QA team members..."
@@ -170,12 +181,14 @@ jobs:
           
           if [ $? -ne 0 ]; then
             echo "::endgroup::"
+            echo "::notice title=QA Team Lookup Failed::Unable to fetch qa team in org $ORG"
             echo "::error title=Validation Failed: QA Team Not Found::❌ Could not fetch QA team members. Ensure a 'qa' team exists in the organization."
             exit 1
           fi
           
           if [ -z "$QA_MEMBERS" ]; then
             echo "::endgroup::"
+            echo "::notice title=QA Team Empty::The qa team exists but has no members"
             echo "::error title=Validation Failed: Empty QA Team::❌ QA team has no members."
             exit 1
           fi
@@ -198,9 +211,11 @@ jobs:
           done
           
           if [ "$QA_APPROVED" == "true" ]; then
+            echo "::notice title=QA Approval Found::PR #$PR_NUMBER includes approval from QA team"
             echo "::endgroup::"
           else
             echo "::endgroup::"
+            echo "::notice title=QA Approval Missing::No QA team member approval found for PR #$PR_NUMBER"
             echo "::error title=Validation Failed: Missing QA Approval::❌ TestCase is required but no approval found from QA team members."
             exit 1
           fi
