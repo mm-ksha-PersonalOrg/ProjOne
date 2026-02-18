@@ -76,7 +76,8 @@ jobs:
           ISSUE_NUMBER=${{ steps.check-linked-issue.outputs.issue_number }}
           echo "::notice title=Project Lookup::Inspecting project #$PROJECT_NUMBER in org $ORG for issue #$ISSUE_NUMBER"
           cursor=null
-          found="false"
+          issue_found="false"
+          testcase_value=""
           page=1
           while [ "$cursor" != "end" ]; do
             echo "::notice title=Project Page Scan::Scanning project items page $page (cursor=$cursor)"
@@ -106,16 +107,17 @@ jobs:
               }
             }'
             RESULT=$(gh api graphql -f query="$QUERY")
-            match=$(echo "$RESULT" | jq --arg num "$ISSUE_NUMBER" '
-              .data.organization.projectV2.items.nodes[]
-              | select(.content.number == ($num|tonumber))
-              | .fieldValues.nodes[]
-              | select(.field.name == "TestCaseRequired")
-              | select(.name == "True")
-            ')
-            if [ -n "$match" ]; then
-              found="true"
-              echo "::notice title=TestCase Field Match::Issue #$ISSUE_NUMBER has TestCaseRequired=True"
+            issue_in_page=$(echo "$RESULT" | jq --arg num "$ISSUE_NUMBER" '[.data.organization.projectV2.items.nodes[] | select(.content.number == ($num|tonumber))] | length')
+            if [ "$issue_in_page" -gt 0 ]; then
+              issue_found="true"
+              testcase_value=$(echo "$RESULT" | jq -r --arg num "$ISSUE_NUMBER" '
+                .data.organization.projectV2.items.nodes[]
+                | select(.content.number == ($num|tonumber))
+                | .fieldValues.nodes[]
+                | select(.field.name == "TestCaseRequired")
+                | .name
+              ' | head -n 1)
+              echo "::notice title=TestCase Field Read::Issue #$ISSUE_NUMBER has TestCaseRequired='$testcase_value'"
               break
             fi
             hasNextPage=$(echo "$RESULT" | jq -r '.data.organization.projectV2.items.pageInfo.hasNextPage')
@@ -126,14 +128,22 @@ jobs:
               cursor="end"
             fi
           done
-          if [ "$found" = "true" ]; then
+          if [ "$issue_found" != "true" ]; then
+            echo "::error title=Validation Failed: Issue Missing From Project::❌ Linked issue #$ISSUE_NUMBER was not found in project #$PROJECT_NUMBER."
+            exit 1
+          fi
+
+          if [ "$testcase_value" = "True" ] || [ "$testcase_value" = "true" ]; then
             echo "TestCaseRequired is True for issue #$ISSUE_NUMBER"
             echo "::notice title=TestCase Required::QA approval validation will run"
             echo "testcase_required=true" >> $GITHUB_OUTPUT
-          else
-            echo "TestCaseRequired is NOT True for issue #$ISSUE_NUMBER"
+          elif [ "$testcase_value" = "False" ] || [ "$testcase_value" = "false" ]; then
+            echo "TestCaseRequired is False for issue #$ISSUE_NUMBER"
             echo "::notice title=TestCase Not Required::QA approval validation will be skipped"
             echo "testcase_required=false" >> $GITHUB_OUTPUT
+          else
+            echo "::error title=Validation Failed: Invalid TestCaseRequired Value::❌ Issue #$ISSUE_NUMBER has invalid TestCaseRequired value '$testcase_value'. Expected True or False."
+            exit 1
           fi
           echo "::endgroup::"
         env:
