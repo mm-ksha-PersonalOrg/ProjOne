@@ -1,6 +1,7 @@
 name: PR Validator
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [edited, reopened, ready_for_review]
     branches:
